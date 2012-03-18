@@ -1,17 +1,13 @@
 module Warden::Mixins::Common
 
-  WARDEN_EXT_SESSION_KEY = 'warden.ext'.freeze
-
   def request
     @request ||= ActionDispatch::Request.new(env)
   end
 
   def session
-    #restore_cookies if(request.cookie_jar[WARDEN_EXT_SESSION_KEY].class == String)
-    #request.cookie_jar[WARDEN_EXT_SESSION_KEY] ||= {:value=>{}}
     request.cookie_jar.signed
+  end 
 
-  end # session
   alias :raw_session :session  
 
   def reset_session!
@@ -20,19 +16,13 @@ module Warden::Mixins::Common
     end
   end
 
-  private
-  #def restore_cookies
-  #  string = request.cookie_jar[WARDEN_EXT_SESSION_KEY]
-  #  hash = eval(string)
-  #  request.cookie_jar[WARDEN_EXT_SESSION_KEY] = {:value=>hash}
-  #end
 end
 
 module Warden
   class SessionSerializer
     def store(user, scope)
       return unless user
-      if user.respond_to?(:remember_me) && user.remember_me
+      if user.respond_to?(:warden_remember_me) && user.warden_remember_me
         session.permanent[key_for(scope)] = serialize(user)
       else
         session[key_for(scope)] = serialize(user)
@@ -57,7 +47,9 @@ Warden::Strategies.add(:password) do
   def authenticate!
     user = User.find_by_email(params['email'])
     if user && user.authenticate(params['password'])
-      user.remember_me = params[:remember_me] 
+      if params[:remember_me]
+        user.define_singleton_method(:warden_remember_me) {true}
+      end
       success! user
     else
       fail "Invalid email or password"
